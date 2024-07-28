@@ -42,6 +42,7 @@ def mockGoogleAdsDataUsingSpark(spark , fileLocation) :
     # uses the spark session passed as parameter 
     # reads entire json file as option of multiline is enabled 
     df = spark.read.option('multiline',True).json(fileLocation)
+    print('File read complete : ')
     # df.printSchema()
     # df.show()
     return df 
@@ -51,6 +52,7 @@ def mockGoogleAdsDataUsingSpark(spark , fileLocation) :
 # creates a new column to show the source of data (Default : Google Ads )
 def transformDataFromGoogleAds(df , schemalist ,source='GoogleAds') : 
     mainCols = df.columns
+    print('Data Transformation Start : ')
     # New column creation 
     df = df.withColumn('Source',lit(source))
 
@@ -61,6 +63,7 @@ def transformDataFromGoogleAds(df , schemalist ,source='GoogleAds') :
     for i in mainCols : #initial nested parent column which is dropped 
         df = df.drop(i)
     # df.printSchema()
+    print('Data Transformation End : ')
     return df 
 
 # Multiple dataframes are combined (union specifically)
@@ -70,13 +73,14 @@ def finalData(dfList):
     for df in dfList[1:] : 
         res = res.union(df)
     res = res.dropDuplicates() # Drops all duplicates 
+    print("Final DataFrame created : ")
     return res 
 
 # method to load data into Mysql database 
 # Creates new table 
 # Enable overwrite = true option to overwrite existing dbtable 
 def loadDataIntoDB( df , dbTable ) : 
-    print(dbTable)
+    print(f"Loading data into : {dbTable}")
     # Connects to localhost mySQL database using sql connector 
     # Host : localhost 
     # Database : zocket 
@@ -88,6 +92,7 @@ def loadDataIntoDB( df , dbTable ) :
     .option('driver','com.mysql.cj.jdbc.Driver')\
     .option("dbtable", dbTable) \
     .option("user", "username") \
+    .option("overwrite",True)\
     .option("password", "password") \
     .save()
     print('Data loaded into DB  ')
@@ -111,21 +116,25 @@ def flatten(schema, prefix=None):
 
 
 
-dbTable = 'testDB1'
-spark = sparkInit()
-srcData = mockGoogleAdsDataUsingSpark(spark,'mockGoogleAdsResponse.json')
-schemaList = flatten(srcData.schema)
-# srcData.show()
-# srcData.iteritems = srcData.items
-enrichedData = transformDataFromGoogleAds(srcData , schemaList, 'GoogleAds' )
-# Let's assume we have another source of data , say Facebooks Ads API or DB 
-# We can store it in here 
-# In this example I have used the same Data source 
-enrichedDataFromAnotherSource = transformDataFromGoogleAds(srcData , schemaList, 'FacebookAds' )
+def main():
+    dbTable = 'testDB4'
+    spark = sparkInit()
+    srcData = mockGoogleAdsDataUsingSpark(spark,'/home/mcmac/prj/zocket/mockGoogleAdsResponse.json')
+    schemaList = flatten(srcData.schema)
+    # srcData.show()
+    # srcData.iteritems = srcData.items
+    enrichedData = transformDataFromGoogleAds(srcData , schemaList, 'GoogleAds' )
+    # Let's assume we have another source of data , say Facebooks Ads API or DB 
+    # We can store it in here 
+    # In this example I have used the same Data source 
+    enrichedDataFromAnotherSource = transformDataFromGoogleAds(srcData , schemaList, 'FacebookAds' )
 
-finalDF = finalData([enrichedData , enrichedDataFromAnotherSource])
-loadDataIntoDB(finalDF , dbTable)
-# enrichedData.show()
+    finalDF = finalData([enrichedData , enrichedDataFromAnotherSource])
+    loadDataIntoDB(finalDF , dbTable)
+    # enrichedData.show()
 
-spark.stop()
-# Sparksession stopped 
+    spark.stop()
+    # Sparksession stopped 
+
+if __name__=="__main__" : 
+    main()

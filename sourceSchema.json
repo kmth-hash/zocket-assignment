@@ -1,0 +1,14 @@
+{
+        "id" : "int" , 
+        "name" : "str" , 
+        "source" : "str" ,
+        "ad_id" : "int" ,
+        "ad_start_date" : "date" , 
+        "ad_version" : "float" , 
+        "ad_group_CPA" : "float" , 
+        "ad_group_clicks" : "int" , 
+        "ad_group_name" : "str" , 
+        "campaign_name" : "str" , 
+        "metrics_clicks" : "int" , 
+        "metrics_impressions" : "int"
+ }

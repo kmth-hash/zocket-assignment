@@ -2,9 +2,9 @@
 # Import all necessary methods from pyspark package  
 from pyspark.sql import SparkSession , Row 
 from pyspark.sql.functions import lit , explode , col
-from pyspark.sql.types import StringType , ArrayType , MapType , StructType
+from pyspark.sql.types import StringType , ArrayType , MapType , StructType , IntegerType , FloatType , DateType
 #  import pandas to create pandas dataframe if reading from json file
-import pandas as pd 
+# import pandas as pd 
 # import requests package to make API calls 
 import requests 
 # json package to convert json response into objects and vice versa based on requirement 
@@ -50,22 +50,57 @@ def mockGoogleAdsDataUsingSpark(spark , fileLocation) :
 # Method to add transformation logic 
 # Converting all the nested columns into a single dimensional schema for the dataframe 
 # creates a new column to show the source of data (Default : Google Ads )
-def transformDataFromGoogleAds(df , schemalist ,source='GoogleAds') : 
+def transformDataFromGoogleAds(df , schemalist ,source='GoogleAds',exclusionCols=['id','name'] , sourceSchema=dict()) : 
     mainCols = df.columns
-    print('Data Transformation Start : ')
     # New column creation 
-    df = df.withColumn('Source',lit(source))
-
+    df = df.withColumn('source',lit(source))
+    print(sourceSchema)
     # iterate through each column header and create a new column with new name with separator of '_'
     for schemaIter in schemalist : 
-        df = df.withColumn(schemaIter.replace('.','_') , col(schemaIter))
-        df = df.drop(schemaIter) # Drop the nested column 
+        tempFieldName = schemaIter.replace('.','_') 
+        tempType = sourceSchema.get(tempFieldName , 'str')
+        reqFieldType = StringType()
+        if tempType=='int' : 
+            reqFieldType = IntegerType()
+        elif tempType=='date' : 
+            reqFieldType = DateType()
+        elif tempType=='float' : 
+            reqFieldType = FloatType()
+        print(schemaIter , reqFieldType)
+        df = df.withColumn( tempFieldName, col(schemaIter).cast(reqFieldType))
+        if schemaIter not in exclusionCols : 
+            df = df.drop(schemaIter) # Drop the nested column   
     for i in mainCols : #initial nested parent column which is dropped 
-        df = df.drop(i)
+        if i not in exclusionCols:
+            print('Dropping col : ',i)
+            df = df.drop(i)
     # df.printSchema()
-    print('Data Transformation End : ')
     return df 
-
+def readSourceSchema():
+    jsonRes = dict()
+    schema = StructType()
+    with open('/home/mcmac/prj/zocket/sourceSchema.json' , 'r') as f : 
+        x = (f.read())
+        jsonRes = dict(json.loads(x))
+    return jsonRes
+def SourceSchemaGeneration():
+    jsonRes = readSourceSchema()
+    schema = StructType()
+    for eachField , eachFieldType in jsonRes.items() :
+        if eachFieldType in ['int' , 'INT' , 'Integertype'] : 
+            schema.add(eachField , IntegerType() , True)
+        elif eachFieldType in ['str' , 'STR' , 'String'] : 
+            schema.add(eachField , StringType() , True )
+        elif eachFieldType in ['date' , 'DATE'] : 
+            schema.add(eachField , DataType() , True) 
+        elif eachFieldType in ['float' , 'FLOAT'] : 
+            schema.add(eachField , FloatType() , True)
+        else : 
+            schema.add(eachField , StringType() , True )
+    print(schema)
+    return schema 
+        
+        
 # Multiple dataframes are combined (union specifically)
 # All rows are stacked into one 
 def finalData(dfList):
@@ -111,25 +146,32 @@ def flatten(schema, prefix=None):
             fields += flatten(dtype, prefix=name)
         else:
             fields.append(name)
+        print(fields)
     print(*fields)
     return fields
 
 
 
 def main():
-    dbTable = 'testDB4'
+    dbTable = 'testDB5'
+    exclusionCols = ['id' , 'name']
     spark = sparkInit()
     srcData = mockGoogleAdsDataUsingSpark(spark,'/home/mcmac/prj/zocket/mockGoogleAdsResponse.json')
     schemaList = flatten(srcData.schema)
-    # srcData.show()
-    # srcData.iteritems = srcData.items
-    enrichedData = transformDataFromGoogleAds(srcData , schemaList, 'GoogleAds' )
+    srcData.show()
+
+    responseSchema = readSourceSchema()
+    enrichedData = transformDataFromGoogleAds(srcData , schemaList, 'GoogleAds' , exclusionCols,responseSchema)
     # Let's assume we have another source of data , say Facebooks Ads API or DB 
     # We can store it in here 
     # In this example I have used the same Data source 
-    enrichedDataFromAnotherSource = transformDataFromGoogleAds(srcData , schemaList, 'FacebookAds' )
-
+    enrichedDataFromAnotherSource = transformDataFromGoogleAds(srcData , schemaList, 'FacebookAds' , exclusionCols , responseSchema)
+    
     finalDF = finalData([enrichedData , enrichedDataFromAnotherSource])
+    finalDF.printSchema()
+
+    print('Previewing final data : ')
+    finalDF.show()
     loadDataIntoDB(finalDF , dbTable)
     # enrichedData.show()
 
@@ -138,3 +180,5 @@ def main():
 
 if __name__=="__main__" : 
     main()
+    res = SourceSchemaGeneration()
+    

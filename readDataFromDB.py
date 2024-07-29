@@ -13,7 +13,7 @@ def readFromDB(spark) :
     .format("jdbc") \
     .option("driver","com.mysql.jdbc.Driver") \
     .option("url", "jdbc:mysql://localhost:3306/zocket") \
-    .option("dbtable", "testDB4") \
+    .option("dbtable", "testDB2") \
     .option("user", "username") \
     .option("password", "password") \
     .load()

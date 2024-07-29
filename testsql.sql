@@ -1,1 +1,1 @@
-drop table if exists testDB4;
+drop table if exists testDB2;
